@@ -9,7 +9,7 @@ cmake -S pass -B build-pass -G Ninja \
   -DMLIR_DIR="$TORCH_MLIR_BUILD/lib/cmake/mlir" \
   -DLLVM_DIR="$TORCH_MLIR_BUILD/lib/cmake/llvm" \
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-  -DLLVM_ENABLE_LLD=ON
+  -DLLVM_USE_LINKER=lld
 cmake --build build-pass
 
 ./build-pass/bin/quant-opt --help | grep -q "quantize-linear" \

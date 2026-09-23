@@ -26,10 +26,13 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt -r torchvision-requirements.txt
 
 # Flags follow torch-mlir docs/development.md; if they change, follow that file.
+# lld is selected with LLVM_USE_LINKER (LLVM_ENABLE_LLD conflicts with it inside
+# torch-mlir's sub-projects). StableHLO is not needed for the linalg path.
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
-  -DLLVM_ENABLE_LLD=ON \
+  -DLLVM_ENABLE_LLD=OFF -DLLVM_USE_LINKER=lld \
+  -DTORCH_MLIR_ENABLE_STABLEHLO=OFF \
   -DPython3_FIND_VIRTUALENV=ONLY \
   -DLLVM_ENABLE_PROJECTS=mlir \
   -DLLVM_EXTERNAL_PROJECTS="torch-mlir" \
