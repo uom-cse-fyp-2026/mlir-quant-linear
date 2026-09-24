@@ -12,8 +12,10 @@ cmake -S pass -B build-pass -G Ninja \
   -DLLVM_USE_LINKER=lld
 cmake --build build-pass
 
-./build-pass/bin/quant-opt --help | grep -q "quantize-linear" \
-  && echo "OK: quant-opt built with --quantize-linear"
+# No grep -q: it exits early and, with pipefail, the pipe would count as failed.
+if ./build-pass/bin/quant-opt --help | grep "quantize-linear" > /dev/null; then
+  echo "OK: quant-opt built with --quantize-linear"
+fi
 
 # Sanity check on the hand-written test IR
 ./build-pass/bin/quant-opt pass/test/matmul.mlir \
