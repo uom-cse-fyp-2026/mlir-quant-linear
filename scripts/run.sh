@@ -26,7 +26,7 @@ echo "== 3. quantize-linear pass (act-scale=$ACT, w-scale=$W)"
 $QOPT build/2_linalg.mlir \
   --pass-pipeline="builtin.module(func.func(quantize-linear{act-scale=$ACT w-scale=$W}))" \
   -o build/3_quantized.mlir
-grep -n "quant\.\(qcast\|dcast\)" build/3_quantized.mlir | cut -c1-200
+grep -n "quant\.\|linalg.matmul\|arith.sitofp" build/3_quantized.mlir | cut -c1-200
 
 echo "== 4. Lower to LLVM and execute"
 LOWER=(--lower-quant-ops --canonicalize --strip-func-quant-types
