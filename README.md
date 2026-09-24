@@ -73,11 +73,14 @@ Every stage is kept in `build/`: `1_torch.mlir` -> `2_linalg.mlir` ->
 
 ## The transformation
 
-`quantize-linear` runs on each `func.func` and finds every `linalg.matmul`. It
-wraps both inputs in a quantize/dequantize pair:
+`quantize-linear` runs on each `func.func` and rewrites every f32 `linalg.matmul`
+(`C = init + X*W`) into INT8 form:
 
 ```
-v  ->  quant.dcast(quant.qcast(v))      qcast: f32 -> !quant.uniform<i8:f32, s>
+Xq  = quant.scast(quant.qcast(X))   tensor<i8>   activation quantized
+Wq  = quant.scast(quant.qcast(W))   tensor<i8>   weight quantized
+Acc = linalg.matmul(Xq, Wq)         tensor<i32>  integer matmul
+C   = init + sitofp(Acc) * (act_scale * w_scale)
 ```
 
 Before (from `2_linalg.mlir`):
@@ -91,11 +94,19 @@ After (`3_quantized.mlir`):
 
 ```mlir
 %0 = quant.qcast %x : tensor<1x64xf32> to tensor<1x64x!quant.uniform<i8:f32, <act_scale>>>
-%1 = quant.dcast %0 : tensor<1x64x!quant.uniform<i8:f32, <act_scale>>> to tensor<1x64xf32>
+%1 = quant.scast %0 : tensor<1x64x!quant.uniform<i8:f32, <act_scale>>> to tensor<1x64xi8>
 %2 = quant.qcast %t : tensor<64x32xf32> to tensor<64x32x!quant.uniform<i8:f32, <w_scale>>>
-%3 = quant.dcast %2 : tensor<64x32x!quant.uniform<i8:f32, <w_scale>>> to tensor<64x32xf32>
-%mm = linalg.matmul ins(%1, %3 : tensor<1x64xf32>, tensor<64x32xf32>) outs(%acc ...)
+%3 = quant.scast %2 : tensor<64x32x!quant.uniform<i8:f32, <w_scale>>> to tensor<64x32xi8>
+%4 = linalg.matmul ins(%1, %3 : tensor<1x64xi8>, tensor<64x32xi8>) outs(%acc_i32 : tensor<1x32xi32>)
+%5 = arith.sitofp %4 : tensor<1x32xi32> to tensor<1x32xf32>
+%6 = arith.mulf %5, %scale : tensor<1x32xf32>        // act_scale * w_scale
+%7 = arith.addf %6, %init : tensor<1x32xf32>         // then + b, ReLU unchanged
 ```
+
+Why not just `quant.dcast(quant.qcast(v))` in front of an f32 matmul? The quant
+dialect folds that pair back to `v`, so after lowering the quantization is gone
+and the output equals fp32. `compare.py` checks for that: the quantization
+error must be non-zero.
 
 Scales are computed in `calibrate.py` (`max|t| / 127`) and passed to the pass
 as options (`act-scale`, `w-scale`).
@@ -124,7 +135,6 @@ source env.sh
 * Per-channel weight scales (`quant::UniformQuantizedPerAxisType`).
 * Compute the weight scale inside the pass from the constant weight.
 * Also quantize the layer output `a` (a QDQ pair after the matmul).
-* Replace QDQ + f32 matmul with `linalg.quantized_matmul` (i8 x i8 -> i32).
 
 ## Toolchain version
 
