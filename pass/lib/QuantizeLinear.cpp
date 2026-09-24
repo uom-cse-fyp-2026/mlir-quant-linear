@@ -49,8 +49,8 @@ struct QuantizeLinearPass
         ty.getElementType(), scale, /*zeroPoint=*/0,
         /*storageTypeMin=*/-128, /*storageTypeMax=*/127);
     auto qTy = RankedTensorType::get(ty.getShape(), qElemTy);
-    Value q = b.create<quant::QuantizeCastOp>(loc, qTy, v);
-    return b.create<quant::DequantizeCastOp>(loc, ty, q);
+    Value q = quant::QuantizeCastOp::create(b, loc, qTy, v);
+    return quant::DequantizeCastOp::create(b, loc, ty, q);
   }
 
   void runOnOperation() override {
